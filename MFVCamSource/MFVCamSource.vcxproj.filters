@@ -51,10 +51,7 @@
     <ClInclude Include="resource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="shared-memory-queue.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="tiny-nv12-scale.h">
+    <ClInclude Include="EventLog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -89,10 +86,7 @@
     <ClCompile Include="FrameGenerator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="shared-memory-queue.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="tiny-nv12-scale.cpp">
+    <ClCompile Include="EventLog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

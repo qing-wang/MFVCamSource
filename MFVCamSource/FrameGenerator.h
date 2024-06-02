@@ -1,5 +1,7 @@
 #pragma once
 
+#include "EventLog.h"
+
 class FrameGenerator
 {
 	UINT _width;
@@ -18,7 +20,9 @@ class FrameGenerator
 	wil::com_ptr_nothrow<IMFDXGIDeviceManager> _dxgiManager;
 
 	HRESULT CreateRenderTargetResources(UINT width, UINT height);
-
+	//
+	EventLog eventLog;
+	HANDLE hShareMemory;
 public:
 	FrameGenerator() :
 		_width(0),
@@ -28,7 +32,8 @@ public:
 		_deviceHandle(nullptr),
 		_prevTime(MFGetSystemTime())
 	{
-
+		eventLog.Initialize("MFVCamSource");
+		hShareMemory = NULL;
 	}
 
 	~FrameGenerator()

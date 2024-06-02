@@ -4,6 +4,7 @@
 #include "EnumNames.h"
 #include "MFTools.h"
 #include "FrameGenerator.h"
+#include <sddl.h>
 
 HRESULT FrameGenerator::EnsureRenderTarget(UINT width, UINT height)
 {
@@ -123,6 +124,43 @@ HRESULT FrameGenerator::Generate(IMFSample* sample, REFGUID format, IMFSample** 
 {
 	static int counter = 0;
 	//
+	if (hShareMemory == NULL)
+	{
+		eventLog.Fire(EVENTLOG_INFORMATION_TYPE, 0x01, 0x01, "hShareMemory == NULL");
+		//
+		// https://stackoverflow.com/questions/898683/how-to-share-memory-between-services-and-user-processes
+		//
+		SECURITY_ATTRIBUTES attributes;
+		ZeroMemory(&attributes, sizeof(attributes));
+		attributes.nLength = sizeof(attributes);
+		ConvertStringSecurityDescriptorToSecurityDescriptor(
+			L"D:P(A;OICI;GA;;;SY)(A;OICI;GA;;;BA)(A;OICI;GR;;;IU)",
+			SDDL_REVISION_1,
+			&attributes.lpSecurityDescriptor,
+			NULL);
+		//
+		hShareMemory = CreateFileMappingW(INVALID_HANDLE_VALUE, &attributes, PAGE_READWRITE, 0, 640 * 480 * 4, L"Global\\iFaceVirtualCamVideo");
+		if (hShareMemory != NULL)
+			eventLog.Fire(EVENTLOG_INFORMATION_TYPE, 0x01, 0x01, "CreateFileMappingW != NULL");
+		else
+			eventLog.Fire(EVENTLOG_INFORMATION_TYPE, 0x01, 0x01, "CreateFileMappingW == NULL");
+	}
+	uint8_t* image = NULL;
+	bool fVideoRead = false;
+	if (hShareMemory != NULL)
+	{
+		image = (uint8_t*)MapViewOfFile(hShareMemory, FILE_MAP_READ, 0, 0, 0);
+		if (image != NULL)
+		{
+			fVideoRead = true;
+		}
+		else
+		{
+			fVideoRead = false;
+			CloseHandle(hShareMemory);
+		}
+	}
+	//
 	RETURN_HR_IF_NULL(E_POINTER, sample);
 	RETURN_HR_IF_NULL(E_POINTER, outSample);
 	*outSample = nullptr;
@@ -144,8 +182,14 @@ HRESULT FrameGenerator::Generate(IMFSample* sample, REFGUID format, IMFSample** 
 		DWORD length;
 		RETURN_IF_FAILED(mediaBuffer->QueryInterface(IID_PPV_ARGS(&buffer2D)));
 		RETURN_IF_FAILED(buffer2D->Lock2DSize(MF2DBuffer_LockFlags_ReadWrite, &scanline, &pitch, &start, &length));
-		memset(start, counter, length);
-		counter++;
+		if (fVideoRead == false)
+		{
+			memset(start, 0x22, length);
+		}
+		else
+		{
+			memcpy(start, image, length);
+		}
 		buffer2D->Unlock2D();
 		//
 		RETURN_IF_FAILED(sample->AddBuffer(mediaBuffer.get()));

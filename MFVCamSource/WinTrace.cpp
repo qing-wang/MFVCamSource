@@ -1,11 +1,14 @@
 #include "pch.h"
 #include "Tools.h"
+#include "EventLog.h"
 
 // we don't use OutputDebugString because it's 100% crap, truncating, slow, etc.
 // use WpfTraceSpy https://github.com/smourier/TraceSpy to see these traces (configure an ETW Provider with guid set to 964d4572-adb9-4f3a-8170-fcbecec27467)
 static GUID GUID_WinTraceProvider = { 0x964d4572,0xadb9,0x4f3a,{0x81,0x70,0xfc,0xbe,0xce,0xc2,0x74,0x67} };
 
 REGHANDLE _traceHandle = 0;
+
+extern EventLog g_eventLog;
 
 HRESULT GetTraceId(GUID* pGuid)
 {
@@ -44,6 +47,11 @@ void WinTraceFormat(UCHAR level, ULONGLONG keyword, PCWSTR format, ...)
 	StringCchVPrintfW(((LPWSTR)szTrace) + 9, _countof(szTrace) - 10, format, args);
 	va_end(args);
 	EventWriteString(_traceHandle, level, keyword, szTrace);
+#if 0
+	std::wstring ws = szTrace;
+	std::string str(ws.begin(), ws.end());
+	g_eventLog.Fire(EVENTLOG_INFORMATION_TYPE, 0x01, 0x01, str.c_str());
+#endif
 }
 
 void WinTraceFormat(UCHAR level, ULONGLONG keyword, PCSTR format, ...)
@@ -58,6 +66,7 @@ void WinTraceFormat(UCHAR level, ULONGLONG keyword, PCSTR format, ...)
 	StringCchVPrintfA(((LPSTR)szTrace) + 9, _countof(szTrace) - 10, format, args);
 	va_end(args);
 	EventWriteString(_traceHandle, level, keyword, to_wstring(szTrace).c_str());
+	//g_eventLog.Fire(EVENTLOG_INFORMATION_TYPE, 0x01, 0x01, szTrace);
 }
 
 void WinTrace(UCHAR level, ULONGLONG keyword, PCSTR string)

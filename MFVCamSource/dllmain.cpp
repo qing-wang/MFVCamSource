@@ -11,12 +11,15 @@
 // 3cad447d-f283-4af4-a3b2-6f5363309f52
 GUID CLSID_VCam = { 0x3cad447d,0xf283,0x4af4,{0xa3,0xb2,0x6f,0x53,0x63,0x30,0x9f,0x52} };
 HMODULE _hModule;
+EventLog g_eventLog;
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpReserved)
 {
 	switch (dwReason)
 	{
 	case DLL_PROCESS_ATTACH:
+		g_eventLog.Initialize("MFVCamSource");
+		//
 		_hModule = hModule;
 		WinTraceRegister();
 		WINTRACE(L"DllMain DLL_PROCESS_ATTACH '%s'", GetCommandLine());

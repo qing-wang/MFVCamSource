@@ -5,6 +5,7 @@
 #include "MFTools.h"
 #include "FrameGenerator.h"
 #include <sddl.h>
+#include "Rgb2NV12.h"
 
 HRESULT FrameGenerator::EnsureRenderTarget(UINT width, UINT height)
 {
@@ -122,7 +123,7 @@ HRESULT FrameGenerator::CreateRenderTargetResources(UINT width, UINT height)
 
 HRESULT FrameGenerator::Generate(IMFSample* sample, REFGUID format, IMFSample** outSample)
 {
-	static int counter = 0;
+	static bool fReportFail = false;
 	//
 	if (hShareMemory == NULL)
 	{
@@ -141,9 +142,15 @@ HRESULT FrameGenerator::Generate(IMFSample* sample, REFGUID format, IMFSample** 
 		//
 		hShareMemory = CreateFileMappingW(INVALID_HANDLE_VALUE, &attributes, PAGE_READWRITE, 0, 640 * 480 * 4, L"Global\\iFaceVirtualCamVideo");
 		if (hShareMemory != NULL)
-			eventLog.Fire(EVENTLOG_INFORMATION_TYPE, 0x01, 0x01, "CreateFileMappingW != NULL");
+			eventLog.Fire(EVENTLOG_INFORMATION_TYPE, 0x01, 0x01, "CreateFileMappingW OK");
 		else
-			eventLog.Fire(EVENTLOG_INFORMATION_TYPE, 0x01, 0x01, "CreateFileMappingW == NULL");
+		{
+			if (fReportFail == false)
+			{
+				eventLog.Fire(EVENTLOG_INFORMATION_TYPE, 0x01, 0x01, "CreateFileMappingW Fail");
+				fReportFail = true;
+			}
+		}
 	}
 	uint8_t* image = NULL;
 	bool fVideoRead = false;
@@ -158,6 +165,7 @@ HRESULT FrameGenerator::Generate(IMFSample* sample, REFGUID format, IMFSample** 
 		{
 			fVideoRead = false;
 			CloseHandle(hShareMemory);
+			eventLog.Fire(EVENTLOG_INFORMATION_TYPE, 0x01, 0x01, "MapViewOfFile Fail. Close File Mapping Handle.");
 		}
 	}
 	//
@@ -165,55 +173,42 @@ HRESULT FrameGenerator::Generate(IMFSample* sample, REFGUID format, IMFSample** 
 	RETURN_HR_IF_NULL(E_POINTER, outSample);
 	*outSample = nullptr;
 
-	// build a sample using either D3D/DXGI (GPU) or WIC (CPU)
 	wil::com_ptr_nothrow<IMFMediaBuffer> mediaBuffer;
-	if (HasD3DManager())
+
+	// remove all existing buffers
+	RETURN_IF_FAILED(sample->RemoveAllBuffers());
+
+	// create a buffer from this and add to sample
+	DWORD memBufLen = 640 * 480 * 4;
+	RETURN_IF_FAILED(MFCreateMemoryBuffer(memBufLen, &mediaBuffer));
+	BYTE* pBuffer = NULL;
+	DWORD cbMaxLength;
+	DWORD cbCurrentLength;
+	RETURN_IF_FAILED(mediaBuffer->Lock(&pBuffer, &cbMaxLength, &cbCurrentLength));
+	if (fVideoRead == false)
 	{
-		// remove all existing buffers
-		RETURN_IF_FAILED(sample->RemoveAllBuffers());
-
-		// create a buffer from this and add to sample
-		RETURN_IF_FAILED(MFCreateDXGISurfaceBuffer(__uuidof(ID3D11Texture2D), _texture.get(), 0, 0, &mediaBuffer));
-		//
-		wil::com_ptr_nothrow<IMF2DBuffer2> buffer2D;
-		BYTE* scanline;
-		LONG pitch;
-		BYTE* start;
-		DWORD length;
-		RETURN_IF_FAILED(mediaBuffer->QueryInterface(IID_PPV_ARGS(&buffer2D)));
-		RETURN_IF_FAILED(buffer2D->Lock2DSize(MF2DBuffer_LockFlags_ReadWrite, &scanline, &pitch, &start, &length));
-		if (fVideoRead == false)
-		{
-			memset(start, 0x22, length);
-		}
-		else
-		{
-			memcpy(start, image, length);
-		}
-		buffer2D->Unlock2D();
-		//
-		RETURN_IF_FAILED(sample->AddBuffer(mediaBuffer.get()));
-
-		// if we're on GPU & format is not RGB, convert using GPU
-		if (format == MFVideoFormat_NV12)
-		{
-			assert(_converter);
-			RETURN_IF_FAILED(_converter->ProcessInput(0, sample, 0));
-
-			// let converter build the sample for us, note it works because we gave it the D3DManager
-			MFT_OUTPUT_DATA_BUFFER buffer = {};
-			DWORD status = 0;
-			RETURN_IF_FAILED(_converter->ProcessOutput(0, 1, &buffer, &status));
-			*outSample = buffer.pSample;
-		}
-		else
-		{
-			sample->AddRef();
-			*outSample = sample;
-		}
-
-		_frame++;
-		return S_OK;
+		memset(pBuffer, 0xFF, 640 * 480 * 4);
+		mediaBuffer->SetCurrentLength(640 * 480 * 4);
 	}
-	return E_FAIL;
+	else
+	{
+		//memcpy(pBuffer, image, 640 * 480 * 4);
+		//
+		Rgb2NV12(image, 640, 480, pBuffer);
+		mediaBuffer->SetCurrentLength(640 * 480 * 2);
+	}
+	mediaBuffer->Unlock();
+	//
+	RETURN_IF_FAILED(sample->AddBuffer(mediaBuffer.get()));
+
+	// if we're on GPU & format is not RGB, convert using GPU
+	if (format == MFVideoFormat_NV12)
+	{
+	}
+	sample->AddRef();
+	*outSample = sample;
+
+	_frame++;
+	eventLog.Fire(EVENTLOG_INFORMATION_TYPE, 0x01, 0x01, "FrameGenerator::Generate OK");
+	return S_OK;
 }

@@ -163,6 +163,7 @@
     <ClInclude Include="MFTools.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="Rgb2NV12.h" />
     <ClInclude Include="Tools.h" />
     <ClInclude Include="Undocumented.h" />
     <ClInclude Include="WinTrace.h" />
@@ -182,6 +183,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Rgb2NV12.cpp" />
     <ClCompile Include="Tools.cpp" />
     <ClCompile Include="WinTrace.cpp" />
   </ItemGroup>
